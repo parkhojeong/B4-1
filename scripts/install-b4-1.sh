@@ -15,6 +15,7 @@ set -euo pipefail
 stage=$1
 bin=/home/agent-admin/agent-app/bin
 profile=/etc/profile.d/agent-app.sh
+# 체크리스트 2-3 · agent-dev 소유, agent-core 읽기·실행. 아래에서 agent-admin의 crontab에 등록한다.
 for script in monitor.sh report.sh archive-logs.sh; do
     install -o agent-dev -g agent-core -m 750 "$stage/$script" "$stage/$script.ready"
     mv -fT "$stage/$script.ready" "$bin/$script"

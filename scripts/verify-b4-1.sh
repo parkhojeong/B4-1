@@ -79,17 +79,20 @@ cron_appends() {
     return 1
 }
 
+# 체크리스트 1-1 · SSH 포트 변경과 root 원격 로그인 차단
 section "SSH"
 c "sshd 포트가 20022이다" 'sshd -T | grep -qx "port 20022"'
 c "Root 원격 로그인이 차단되어 있다" 'sshd -T | grep -qx "permitrootlogin no"'
 c "20022 포트가 LISTEN 상태이다" '[ -n "$(ss -H -ltn "sport = :20022")" ]'
 c "기존 22 포트는 LISTEN 상태가 아니다" '[ -z "$(ss -H -ltn "sport = :22")" ]'
 
+# 체크리스트 1-2 · UFW 활성 상태와 허용 포트
 section "방화벽"
 c "UFW가 활성화되어 있다" 'ufw status | grep -qx "Status: active"'
 c "기본 인바운드 정책이 deny이다" 'ufw status verbose | grep -q "deny (incoming)"'
 c "허용 규칙이 20022/tcp, 15034/tcp뿐이다" '[ "$(ufw status | awk "/ALLOW/{print \$1}" | sort -u | tr "\n" " ")" = "15034/tcp 20022/tcp " ]'
 
+# 체크리스트 1-3 · 계정별 agent-common·agent-core 소속
 section "계정과 그룹"
 for u in agent-admin agent-dev agent-test; do
     c "$u 계정이 있다" "id $u"
@@ -129,6 +132,7 @@ c "앱이 읽는 secret.key가 명세의 키 파일을 가리킨다" '[ "$H/api_
 c "AGENT_LOG_DIR 값이 맞다" 'env_is AGENT_LOG_DIR /var/log/agent-app'
 c "키 파일 내용이 1줄로 맞다" "[ \"\$(cat $H/api_keys/t_secret.key)\" = agent_api_key_test ] && [ \"\$(wc -l < $H/api_keys/t_secret.key)\" -eq 1 ]"
 c "앱 프로세스의 실행 계정이 agent-admin이다" 'app_runs_as_admin'
+# 체크리스트 1-4 · 부팅 5단계와 실제 완료 메시지 Agent READY
 c "Boot Sequence 5단계가 모두 [OK]이다" 'boot_steps_ok'
 c "Agent READY가 출력되었다" "grep -qx 'Agent READY' $H/app.out"
 c "앱이 0.0.0.0:15034에서 LISTEN 중이다" 'runuser -u agent-admin -- ss -H -ltnp "sport = :15034" | grep -F "0.0.0.0:15034" | grep -qF "(\"agent-app-linux\","'
@@ -136,6 +140,7 @@ c "앱이 0.0.0.0:15034에서 LISTEN 중이다" 'runuser -u agent-admin -- ss -H
 section "monitor.sh"
 c "위치, 소유자, 그룹, 권한이 맞다" "mode_is $M agent-dev:agent-core:750"
 c "Bash 스크립트이다" "[ \"\$(head -n 1 $M)\" = '#!/bin/bash' ]"
+# 체크리스트 1-5 · 정상 실행과 프로세스·포트 오류의 종료 코드 비교
 c "agent-admin이 정상 실행하면 exit 0이다" 'run_monitor ""'
 c "포트가 비정상이면 exit 1이다" '[ "$(run_monitor "AGENT_PORT=15999" >/dev/null 2>&1; echo $?)" = 1 ]'
 c "프로세스가 비정상이면 exit 1이다" '[ "$(run_monitor "APP_PROCESS=no-such-proc" >/dev/null 2>&1; echo $?)" = 1 ]'
@@ -164,13 +169,16 @@ WARNINGS
 c "MEM 10%·DISK 80% 경계와 초과 경고 후 로그 기록이 맞다" 'resource_warnings'
 
 section "로그와 cron"
+# 체크리스트 1-6 · 로그 파일과 각 줄의 필드 형식
 c "monitor.log가 있다" "[ -s $L ]"
 c "모든 줄이 지정 포맷이다" "! grep -vE '^\[[0-9]{4}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2}:[0-9]{2}\] PID:[0-9]+ CPU:[0-9.]+% MEM:[0-9.]+% DISK_USED:[0-9]+%\$' $L"
 c "agent-admin crontab에 매분 실행이 등록되어 있다" "crontab -u agent-admin -l | grep -qxF '* * * * * $M >/dev/null 2>&1'"
 c "cron 서비스가 실행 중이다" 'service cron status'
 c "최근 90초 안에 로그가 기록되었다" "[ \$(( \$(date +%s) - \$(date -d \"\$(tail -n 1 $L | cut -c2-20)\" +%s) )) -le 90 ]"
+# 체크리스트 1-8 · 임시 로그로 교체 시점과 백업 9개 보존 확인
 c "10MB 초과 시 교체하고 10개 파일을 유지한다" 'rotation_works'
 
+# 체크리스트 1-7 · 매분 cron 등록 확인 후 다음 자동 기록 관찰
 c "수동 기록 없이 80초 안에 monitor.log에 새 줄이 생긴다" 'cron_appends'
 
 section "선택 과제"

@@ -12,6 +12,7 @@ set -u
 export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 export LC_ALL=C
 
+# 체크리스트 4-1 · 웹 서버로 바꿀 때는 프로세스 이름, 수신 포트, 로그 경로와 자원 임계값을 맞춘다.
 AGENT_PORT="${AGENT_PORT:-15034}"
 AGENT_LOG_DIR="${AGENT_LOG_DIR:-/var/log/agent-app}"
 
@@ -52,10 +53,12 @@ fail() {
     exit 1
 }
 
+# 체크리스트 3-3 · 방화벽 비활성이나 임계값 초과는 경고하고 그때의 측정값을 계속 기록한다.
 warn() {
     echo "[WARNING] $1"
 }
 
+# 체크리스트 2-1 · 프로세스는 이름과 상태로, 포트는 check_port()에서 TCP LISTEN 여부로 확인한다.
 # 앱은 부모와 실제 작업 프로세스로 실행되므로 이름이 일치하는 PID 중 가장 큰 값부터 확인한다.
 # 종료 후 회수되지 않은 좀비 프로세스는 실행 중이 아니므로 제외한다.
 find_app_pid() {
@@ -110,6 +113,7 @@ show_firewall_status() {
     fi
 }
 
+# 체크리스트 2-2 · 아래 세 함수가 수집한 사용률을 append_log()가 고정된 필드 순서로 기록한다.
 # /proc/stat의 누적 CPU 시간을 "전체 유휴" 형태로 출력한다.
 read_cpu_times() {
     local _label user nice system idle iowait irq softirq steal _rest
@@ -159,6 +163,7 @@ show_resources() {
     warn_if_above DISK "$disk" "$DISK_LIMIT"
 }
 
+# 체크리스트 2-4 · 로그 교체는 매번 기록 직전에 이 함수에서 처리한다.
 # 다음 줄을 쓰면 10MB를 넘는 경우 백업 번호를 하나씩 밀고 가장 오래된 파일을 지운다.
 rotate_log() {
     local next_line_size="$1" size i
@@ -182,6 +187,7 @@ append_log() {
 
     # 줄 끝의 개행도 1바이트를 차지한다.
     rotate_log "$((${#line} + 1))" || fail "Log rotation failed: $LOG_FILE"
+    # 체크리스트 3-4 · >>는 이전 줄을 보존한다. >를 쓰면 매번 마지막 측정값만 남는다.
     echo "$line" >>"$LOG_FILE" || fail "Cannot write log: $LOG_FILE"
     echo
     echo "[INFO] Log appended: $LOG_FILE"
